@@ -226,11 +226,13 @@ spec:
             runAsUser: 100
             runAsGroup: 101
           command: ["/bin/sh", "-c", "cp -rLf /tmp/frr/* /etc/frr/"]
+          {{- if .Values.speaker.frr.enabled }}
           volumeMounts:
             - name: frr-startup
               mountPath: /tmp/frr
             - name: frr-conf
               mountPath: /etc/frr
+          {{- end }}
           {{- with .Values.speaker.initContainers.cpFrrFiles.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
