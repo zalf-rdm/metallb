@@ -26,10 +26,22 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      - name: Ensure gh-pages branch exists
+        run: |
+          if ! git ls-remote --exit-code origin gh-pages; then
+            git checkout --orphan gh-pages
+            git rm -rf .
+            echo '# Helm Chart Repository' > README.md
+            git add README.md
+            git commit -m 'Initialize gh-pages'
+            git push origin gh-pages
+            git checkout -
+          fi
+          git fetch origin gh-pages
+
       - name: Set chart version from branch name
         id: version
         run: |
-          # Branch is e.g. 0.16.1-zalf.1 — use it directly as the chart version
           VERSION="${GITHUB_REF_NAME}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -53,42 +65,17 @@ jobs:
           tar -xzf cr.tar.gz
           rm cr.tar.gz
 
-      - name: Check if release already exists
-        id: check
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="metallb-chart-${VERSION}"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}")
-          echo "exists=${STATUS}" >> "$GITHUB_OUTPUT"
-
       - name: Package chart
-        if: steps.check.outputs.exists != '200'
         run: ./cr package charts/metallb
 
       - name: Upload chart to GitHub Releases
-        if: steps.check.outputs.exists != '200'
         run: |
           ./cr upload \
             --owner "${{ github.repository_owner }}" \
             --git-repo "$(basename ${{ github.repository }})" \
             --release-name-template "{{ .Name }}-chart-{{ .Version }}" \
+            --skip-existing \
             --token "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Ensure gh-pages branch exists
-        run: |
-          if ! git ls-remote --exit-code origin gh-pages; then
-            git checkout --orphan gh-pages
-            git rm -rf .
-            echo '# Helm Chart Repository' > README.md
-            git add README.md
-            git commit -m 'Initialize gh-pages'
-            git push origin gh-pages
-            git checkout -
-          fi
 
       - name: Update Helm index on gh-pages
         run: |
